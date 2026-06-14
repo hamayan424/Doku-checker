@@ -37,13 +37,12 @@
     border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.35);}
   .scanhint{position:absolute;left:0;right:0;bottom:10px;text-align:center;
     font-size:12px;color:#dfe7ef;text-shadow:0 1px 3px #000;}
-  .zoombar{position:absolute;left:14px;right:14px;bottom:34px;display:flex;
-    align-items:center;gap:10px;background:rgba(0,0,0,.45);border-radius:999px;
-    padding:7px 14px;backdrop-filter:blur(4px);}
+  .zoombar{display:flex;align-items:center;gap:10px;margin-top:10px;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;}
   .zoombar.hide{display:none;}
-  .zoombar .zlabel{font-size:15px;}
-  .zoombar input[type=range]{flex:1;accent-color:var(--accent);height:24px;}
-  .zoombar .zval{font-size:12px;color:#fff;font-variant-numeric:tabular-nums;min-width:38px;text-align:right;font-weight:700;}
+  .zoombar .zlabel{font-size:12px;color:var(--sub);font-weight:700;white-space:nowrap;}
+  .zoombar input[type=range]{flex:1;accent-color:var(--accent);height:28px;}
+  .zoombar .zval{font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums;min-width:42px;text-align:right;font-weight:800;}
   .field{margin:12px 0;}
   .label{font-size:12px;color:var(--sub);margin:0 0 6px 2px;font-weight:600;}
   input[type=text],input[type=number],textarea,select{width:100%;padding:14px;font-size:17px;
@@ -142,11 +141,11 @@
     <video id="video" playsinline muted></video>
     <div class="reticle"></div>
     <div class="scanhint">バーコードを枠に合わせてください</div>
-    <div class="zoombar" id="zoombar">
-      <span class="zlabel">🔍</span>
-      <input type="range" id="zoom" min="1" max="5" step="0.1" value="2">
-      <span class="zval" id="zval">2.0x</span>
-    </div>
+  </div>
+  <div class="zoombar hide" id="zoombar">
+    <span class="zlabel">🔍 ズーム</span>
+    <input type="range" id="zoom" min="1" max="6" step="0.1" value="2">
+    <span class="zval" id="zval">2.0x</span>
   </div>
   <button class="btn btn-scan" id="scanBtn" style="margin-top:12px">&#128247; バーコードをスキャン</button>
   <div class="field">
@@ -411,7 +410,7 @@ $("scanBtn").onclick=async function(){
   try{
     codeReader=new ZXing.BrowserMultiFormatReader();
     $("scanwrap").classList.add("on");
-    $("scanBtn").textContent="&#9632; スキャンを止める";
+    $("scanBtn").innerHTML="&#9632; スキャンを止める";
     $("scanBtn").classList.add("stop");
     scanning=true;
     await codeReader.decodeFromVideoDevice(null,"video",function(res){
@@ -425,7 +424,7 @@ $("scanBtn").onclick=async function(){
         toast(hits.length?(hits.length+"サイトで相場あり"):"未登録の商品です");
       }
     });
-    setupZoom();
+    setTimeout(setupZoom, 600);
   }catch(e){ toast("カメラを起動できませんでした"); stopScan(); }
 };
 
@@ -437,30 +436,35 @@ function setupZoom(){
   const slider=$("zoom");
   // ハードウェアズーム対応チェック
   if(videoTrack&&videoTrack.getCapabilities){
-    const caps=videoTrack.getCapabilities();
-    if(caps&&caps.zoom){
-      zoomCaps=caps.zoom;
-      slider.min=caps.zoom.min;
-      slider.max=caps.zoom.max;
-      slider.step=caps.zoom.step||0.1;
-    }
+    try{
+      const caps=videoTrack.getCapabilities();
+      if(caps&&caps.zoom&&caps.zoom.max>caps.zoom.min){
+        zoomCaps=caps.zoom;
+        slider.min=caps.zoom.min;
+        slider.max=caps.zoom.max;
+        slider.step=caps.zoom.step||0.1;
+      }
+    }catch(e){}
   }
+  $("zoombar").classList.remove("hide");
   const initial=2;
-  slider.value=Math.min(initial, parseFloat(slider.max));
+  const mx=parseFloat(slider.max);
+  slider.value=Math.min(initial, mx);
   applyZoom(parseFloat(slider.value));
 }
 
 function applyZoom(z){
   $("zval").textContent=z.toFixed(1)+"x";
+  const vid=$("video");
   if(zoomCaps&&videoTrack){
-    // ハードウェアズーム
     const zz=Math.max(zoomCaps.min,Math.min(zoomCaps.max,z));
-    videoTrack.applyConstraints({advanced:[{zoom:zz}]}).catch(function(){});
-    $("video").style.transform="";
+    videoTrack.applyConstraints({advanced:[{zoom:zz}]}).catch(function(){
+      // 失敗したらCSSにフォールバック
+      vid.style.transform="scale("+z+")";vid.style.transformOrigin="center center";
+    });
   }else{
-    // CSSズーム（フォールバック）
-    $("video").style.transform="scale("+z+")";
-    $("video").style.transformOrigin="center center";
+    vid.style.transform="scale("+z+")";
+    vid.style.transformOrigin="center center";
   }
 }
 
@@ -469,6 +473,7 @@ $("zoom").addEventListener("input",function(){ applyZoom(parseFloat(this.value))
 function stopScan(){
   if(codeReader){try{codeReader.reset()}catch(e){}}
   $("scanwrap").classList.remove("on");
+  $("zoombar").classList.add("hide");
   $("scanBtn").innerHTML="&#128247; バーコードをスキャン";
   $("scanBtn").classList.remove("stop");
   $("video").style.transform="";

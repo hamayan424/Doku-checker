@@ -470,6 +470,32 @@ function applyZoom(z){
 
 $("zoom").addEventListener("input",function(){ applyZoom(parseFloat(this.value)); });
 
+// 二本指ピンチでズーム
+let pinchStartDist=0, pinchStartZoom=2;
+function dist(t){var dx=t[0].clientX-t[1].clientX,dy=t[0].clientY-t[1].clientY;return Math.hypot(dx,dy);}
+$("scanwrap").addEventListener("touchstart",function(e){
+  if(e.touches.length===2){
+    pinchStartDist=dist(e.touches);
+    pinchStartZoom=parseFloat($("zoom").value);
+    e.preventDefault();
+  }
+},{passive:false});
+$("scanwrap").addEventListener("touchmove",function(e){
+  if(e.touches.length===2&&pinchStartDist>0){
+    e.preventDefault();
+    const ratio=dist(e.touches)/pinchStartDist;
+    const slider=$("zoom");
+    const mn=parseFloat(slider.min), mx=parseFloat(slider.max);
+    let z=pinchStartZoom*ratio;
+    z=Math.max(mn,Math.min(mx,z));
+    slider.value=z;
+    applyZoom(z);
+  }
+},{passive:false});
+$("scanwrap").addEventListener("touchend",function(e){
+  if(e.touches.length<2) pinchStartDist=0;
+});
+
 function stopScan(){
   if(codeReader){try{codeReader.reset()}catch(e){}}
   $("scanwrap").classList.remove("on");
